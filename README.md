@@ -35,7 +35,7 @@ pub const MAX_APP_NUM: usize = 8
 
 #### ch4
 
-虚存模块太多的地方使用了 `unwrap`, 大部分可能的错误都没有处理。
+虚存模块太多的地方使用了 `unwrap`, 大部分可能的错误都没有处理，将成为实现 mmap 和 munmap 的一大工作量。
 
 > 让同学们自己处理有没有问题？
 
@@ -44,3 +44,8 @@ pub const MAX_APP_NUM: usize = 8
 `spawn` 改不改？
 
 > 预计 ch5-6 会落在造机期间，任务量得小心控制。。。
+
+#### ch6
+
+用 Rust 编写支持管道运算符的 Shell https://github.com/JoshMcguigan/bubble-shell
+
