@@ -11,7 +11,7 @@ TEST ?= 0
 ifeq ($(TEST), 0)
 	APPS :=  $(filter-out $(wildcard $(APP_DIR)/test*.rs), $(wildcard $(APP_DIR)/*.rs))
 else
-	APPS :=  $(wildcard $(APP_DIR)/test*.rs)
+	APPS :=  $(wildcard $(APP_DIR)/test*.rs) $(APP_DIR)/initproc.rs $(APP_DIR)/user_shell.rs
 endif
 ELFS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%, $(APPS))
 
