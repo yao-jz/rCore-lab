@@ -56,13 +56,13 @@ fn easy_fs_pack() -> std::io::Result<()> {
             .write(true)
             .create(true)
             .open(format!("{}{}", target_path, "fs.img"))?;
-        f.set_len(128 * 2048 * 512).unwrap();
+        f.set_len(8192 * 512).unwrap();
         f
     })));
-    // 128MiB, at most 4095 files
+    // 4MiB, at most 4095 files
     let efs = EasyFileSystem::create(
         block_file.clone(),
-        128 * 2048,
+        8192,
         1,
     );
     let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
@@ -76,7 +76,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
         })
         .collect();
     for app in apps {
-        // load app data from host file system
+        // load app data (elf) from host file system
         let mut host_file = File::open(format!("{}{}", target_path, app)).unwrap();
         let mut all_data: Vec<u8> = Vec::new();
         host_file.read_to_end(&mut all_data).unwrap();
