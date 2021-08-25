@@ -24,7 +24,7 @@ pub fn main() -> i32 {
     }
     let f = f as usize;
     let start = get_time();
-    let size_mb = 5usize;
+    let size_mb = 1usize;
     for _ in 0..1024*size_mb {
         write(f, &buffer);
     }

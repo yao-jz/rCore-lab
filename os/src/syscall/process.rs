@@ -134,7 +134,7 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     -1
 }
 
-// YOUR JOB: 实现 sys_spawn 系统调用
+// YOUR JOB: 引入文件系统后需要修改 sys_spawn 的实现
 pub fn sys_spawn(_path: *const u8) -> isize {
     -1
 }
