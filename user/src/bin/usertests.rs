@@ -19,6 +19,7 @@ static TESTS: &[&str] = &[
     // "forktest2\0",
     // "sleep\0",
     // "sleep_simple\0",
+    // "forktree\0",
 ];
 
 use user_lib::{exec, fork, waitpid};
