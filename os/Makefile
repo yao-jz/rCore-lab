@@ -39,9 +39,9 @@ kernel:
 	@cargo build --release
 
 clean:
-	@rm $(FS_IMG)
 	@cargo clean
 	@cd ../user && make clean
+	@rm $(FS_IMG)
 
 run: build
 	@qemu-system-riscv64 \

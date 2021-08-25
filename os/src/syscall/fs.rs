@@ -5,7 +5,7 @@ use crate::mm::{
     translated_str,
 };
 use crate::task::{current_user_token, current_task};
-use crate::fs::{make_pipe, OpenFlags, open_file};
+use crate::fs::{make_pipe, OpenFlags, open_file, Stat};
 use alloc::sync::Arc;
 
 // YOUR JOB: 修改 sys_write 使之通过 ch2 测试 
@@ -109,4 +109,17 @@ pub fn sys_dup(fd: usize) -> isize {
     let new_fd = inner.alloc_fd();
     inner.fd_table[new_fd] = Some(Arc::clone(inner.fd_table[fd].as_ref().unwrap()));
     new_fd as isize
+}
+
+// YOUR JOB: 扩展 easy-fs 和内核以实现以下三个 syscall
+pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
+   -1
+}
+
+pub fn sys_linkat(_old_name: usize, _new_name: usize) -> isize {
+    -1
+}
+
+pub fn sys_unlinkat(_name: usize) -> isize {
+    -1
 }
