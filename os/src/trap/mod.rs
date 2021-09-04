@@ -58,7 +58,7 @@ pub fn trap_handler() -> ! {
         | Trap::Exception(Exception::InstructionPageFault)
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => {
-            println!(
+            error!(
                 "[kernel] {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.",
                 scause.cause(),
                 stval,
@@ -68,7 +68,7 @@ pub fn trap_handler() -> ! {
             exit_current_and_run_next(-2);
         }
         Trap::Exception(Exception::IllegalInstruction) => {
-            println!("[kernel] IllegalInstruction in application, core dumped.");
+            error!("[kernel] IllegalInstruction in application, core dumped.");
             // illegal instruction exit code
             exit_current_and_run_next(-3);
         }

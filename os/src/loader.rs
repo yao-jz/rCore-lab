@@ -56,9 +56,9 @@ pub fn get_app_data_by_name(name: &str) -> Option<&'static [u8]> {
 }
 
 pub fn list_apps() {
-    println!("/**** APPS ****");
+    info!("/**** APPS ****");
     for app in APP_NAMES.iter() {
-        println!("{}", app);
+        info!("{}", app);
     }
-    println!("**************/");
+    info!("**************/");
 }
