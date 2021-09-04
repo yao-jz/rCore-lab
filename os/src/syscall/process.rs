@@ -62,7 +62,8 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 
     // ---- access current TCB exclusively
     let mut inner = task.inner_exclusive_access();
-    if inner.children
+    if inner
+        .children
         .iter()
         .find(|p| pid == -1 || pid as usize == p.getpid())
         .is_none()
@@ -70,14 +71,11 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
         return -1;
         // ---- release current PCB
     }
-    let pair = inner.children
-        .iter()
-        .enumerate()
-        .find(|(_, p)| {
-            // ++++ temporarily access child PCB lock exclusively
-            p.inner_exclusive_access().is_zombie() && (pid == -1 || pid as usize == p.getpid())
-            // ++++ release child PCB
-        });
+    let pair = inner.children.iter().enumerate().find(|(_, p)| {
+        // ++++ temporarily access child PCB lock exclusively
+        p.inner_exclusive_access().is_zombie() && (pid == -1 || pid as usize == p.getpid())
+        // ++++ release child PCB
+    });
     if let Some((idx, _)) = pair {
         let child = inner.children.remove(idx);
         // confirm that child will be deallocated after removing from children list
@@ -122,5 +120,5 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
 
 // YOUR JOB: 实现 sys_spawn 系统调用
 pub fn sys_spawn(_path: *const u8) -> isize {
-   -1
+    -1
 }

@@ -1,8 +1,8 @@
-use crate::mm::{UserBuffer, translated_byte_buffer, translated_refmut};
-use crate::task::{current_user_token, current_task};
 use crate::fs::make_pipe;
+use crate::mm::{translated_byte_buffer, translated_refmut, UserBuffer};
+use crate::task::{current_task, current_user_token};
 
-// YOUR JOB: 修改 sys_write 使之通过 ch2 测试 
+// YOUR JOB: 修改 sys_write 使之通过 ch2 测试
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
     let task = current_task().unwrap();
@@ -14,9 +14,7 @@ pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
         let file = file.clone();
         // release current task TCB manually to avoid multi-borrow
         drop(inner);
-        file.write(
-            UserBuffer::new(translated_byte_buffer(token, buf, len))
-        ) as isize
+        file.write(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
     } else {
         -1
     }
@@ -33,9 +31,7 @@ pub fn sys_read(fd: usize, buf: *const u8, len: usize) -> isize {
         let file = file.clone();
         // release current task TCB manually to avoid multi-borrow
         drop(inner);
-        file.read(
-            UserBuffer::new(translated_byte_buffer(token, buf, len))
-        ) as isize
+        file.read(UserBuffer::new(translated_byte_buffer(token, buf, len))) as isize
     } else {
         -1
     }
