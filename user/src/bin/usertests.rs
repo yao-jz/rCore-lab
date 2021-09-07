@@ -14,8 +14,8 @@ static TESTS: &[&str] = &[
     "stack_overflow\0",
     "yield\0",
     "pipetest\0",
-    "run_pipe_test\0",
     // 正确实现 sys_get_time 后这些程序才能运行
+    // "pipe_large_test\0",
     // "forktest2\0",
     // "sleep\0",
     // "sleep_simple\0",
