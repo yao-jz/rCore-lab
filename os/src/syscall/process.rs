@@ -116,8 +116,3 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     -1
 }
-
-// YOUR JOB: 实现 sys_spawn 系统调用
-pub fn sys_spawn(_path: *const u8) -> isize {
-    -1
-}
