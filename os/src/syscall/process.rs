@@ -138,3 +138,5 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
 pub fn sys_spawn(_path: *const u8) -> isize {
     -1
 }
+
+// YOUR JOB: 邮件读写 syscall
