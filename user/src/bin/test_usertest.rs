@@ -5,7 +5,6 @@
 extern crate user_lib;
 
 static TESTS: &[&str] = &[
-    "test_write1\0",
     "test_sleep\0",
     "test_sleep1\0",
     "test_mmap0\0",
@@ -42,6 +41,6 @@ pub fn main() -> i32 {
             test, pid, xstate
         );
     }
-    println!("ch5 Usertests passed!");
+    println!("ch7 Usertests passed!");
     0
 }

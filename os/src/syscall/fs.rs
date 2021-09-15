@@ -8,7 +8,6 @@ use crate::task::{current_user_token, current_task};
 use crate::fs::{make_pipe, OpenFlags, open_file, Stat};
 use alloc::sync::Arc;
 
-// YOUR JOB: 修改 sys_write 使之通过 ch2 测试 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
     let task = current_task().unwrap();
