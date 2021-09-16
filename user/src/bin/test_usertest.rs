@@ -5,7 +5,6 @@
 extern crate user_lib;
 
 static TESTS: &[&str] = &[
-    "test_write1\0",
     "test_sleep\0",
     "test_sleep1\0",
     "test_mmap0\0",
@@ -14,7 +13,12 @@ static TESTS: &[&str] = &[
     "test_mmap3\0",
     "test_unmap\0",
     "test_unmap2\0",
-    "test_shmem0\0",
+    "test_spawn0\0",
+    "test_spawn1\0",
+    "test_mail0\0",
+    "test_mail1\0",
+    "test_mail2\0",
+    "test_mail3\0",
 ];
 
 use user_lib::{spawn, waitpid};
@@ -34,6 +38,6 @@ pub fn main() -> i32 {
             test, pid, xstate
         );
     }
-    println!("ch5 Usertests passed!");
+    println!("ch6 Usertests passed!");
     0
 }

@@ -2,7 +2,6 @@ use crate::fs::make_pipe;
 use crate::mm::{translated_byte_buffer, translated_refmut, UserBuffer};
 use crate::task::{current_task, current_user_token};
 
-// YOUR JOB: 修改 sys_write 使之通过 ch2 测试
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
     let task = current_task().unwrap();
