@@ -14,8 +14,11 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::MAX_SYSCALL_NUM;
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::MemorySet;
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
@@ -35,17 +38,17 @@ pub use context::TaskContext;
 /// existing functions on `TaskManager`.
 pub struct TaskManager {
     /// total number of tasks
-    num_app: usize,
+    pub num_app: usize,
     /// use inner value to get mutable access
-    inner: UPSafeCell<TaskManagerInner>,
+    pub inner: UPSafeCell<TaskManagerInner>,
 }
 
 /// The task manager inner in 'UPSafeCell'
-struct TaskManagerInner {
+pub struct TaskManagerInner {
     /// task list
-    tasks: Vec<TaskControlBlock>,
+    pub tasks: Vec<TaskControlBlock>,
     /// id of current `Running` task
-    current_task: usize,
+    pub current_task: usize,
 }
 
 lazy_static! {
@@ -79,6 +82,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
+        next_task.start_time = get_time_us();
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -134,6 +138,9 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+            if inner.tasks[next].start_time == 0 {
+                inner.tasks[next].start_time = get_time_us();
+            }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -190,4 +197,26 @@ pub fn current_user_token() -> usize {
 /// Get the current 'Running' task's trap contexts.
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
+}
+
+pub fn get_current_block_status() -> TaskStatus {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].task_status
+}
+pub fn get_current_block_syscall_times() -> [u32;MAX_SYSCALL_NUM] {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].syscall_times
+}
+pub fn get_current_block_start_time() -> usize {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].start_time
+}
+
+pub fn update_syscall_times(syscall_id: usize) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].syscall_times[syscall_id] += 1;
 }

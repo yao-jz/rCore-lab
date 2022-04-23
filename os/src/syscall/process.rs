@@ -1,9 +1,9 @@
 //! Process management syscalls
 
-use crate::config::MAX_SYSCALL_NUM;
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus};
+use crate::config::{MAX_SYSCALL_NUM, PAGE_SIZE};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, get_current_block_status,get_current_block_syscall_times,get_current_block_start_time, TASK_MANAGER};
 use crate::timer::get_time_us;
-use crate::mm::{translated_byte_vec};
+use crate::mm::{VirtAddr,VirtPageNum,translated_byte_buffer,MapPermission,MapArea,MapType,VPNRange};
 use crate::task::current_user_token;
 
 #[repr(C)]
@@ -35,25 +35,20 @@ pub fn sys_yield() -> isize {
 // YOUR JOB: 引入虚地址后重写 sys_get_time
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     let _us = get_time_us();
-    let ts = translated_byte_vec(current_user_token(), _ts as *const u8, 128/8);
-    let sec = &(_us / 1_000_000).to_be_bytes();
-    let usec = (_us % 1_000_000).to_be_bytes();
+    let ts = translated_byte_buffer(current_user_token(), _ts as *const u8, core::mem::size_of::<TimeVal>());
     let mut now_byte = 0;
+    let time_val = &TimeVal {
+        sec: _us / 1_000_000,
+        usec: _us % 1_000_000,
+    };
+    let t = (time_val as *const TimeVal) as usize;
     for i in ts {
-        if now_byte < 8 {
-            *i = sec[now_byte];
-            now_byte += 1;
-        } else {
-            *i = usec[now_byte-8];
-            now_byte += 1;
+        let len = i.len();
+        unsafe {
+            i.copy_from_slice(core::slice::from_raw_parts_mut((t+now_byte)as *mut u8, len));
         }
+        now_byte += len;
     }
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
     0
 }
 
@@ -64,14 +59,76 @@ pub fn sys_set_priority(_prio: isize) -> isize {
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    -1
+    //_port 第 0 位表示是否可读，第 1 位表示是否可写，第 2 位表示是否可执行。其他位无效且必须为 0
+    if _start % PAGE_SIZE != 0 || _port & !0x7 != 0 || _port & 0x7 == 0 {
+        return -1;
+    }
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let mut this_permission = MapPermission::U;
+    if _port & 1 == 1 {
+        this_permission |= MapPermission::R;
+    }
+    if _port & 2 == 1 {
+        this_permission |= MapPermission::W;
+    } 
+    if _port & 4 == 1{
+        this_permission |= MapPermission::X;
+    }
+    let vpn_range = VPNRange::new(VirtAddr::from(_start).floor(), VirtAddr::from(_start+_len).ceil());
+    for vpn in vpn_range {
+        if let Some(pte) = inner.tasks[current].memory_set.page_table.find_pte(vpn) {
+            if pte.is_valid() {
+                return -1;
+            }
+        } else {
+        }
+    }
+    inner.tasks[current].memory_set.insert_framed_area(VirtAddr::from(_start), VirtAddr::from(_start+_len), this_permission);
+    0
 }
 
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+    if _start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let start_vpn: VirtPageNum = VirtAddr::from(_start).floor();
+    let end_vpn: VirtPageNum = VirtAddr::from(_start+_len).ceil();
+    let vpn_range = VPNRange::new(start_vpn, end_vpn);
+    for vpn in vpn_range {
+        if let Some(pte) = inner.tasks[current].memory_set.page_table.find_pte(vpn) {
+            if !pte.is_valid() {
+                return -1;
+            }
+        } else{
+            return -1;
+        }
+    }
+    for vpn in vpn_range {
+        inner.tasks[current].memory_set.page_table.unmap(vpn);
+    }
+    0
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    let this_time = get_time_us();
+    let ti = translated_byte_buffer(current_user_token(), ti as *const u8, core::mem::size_of::<TaskInfo>());
+    let task_info = &TaskInfo {
+        status: get_current_block_status(),
+        syscall_times: get_current_block_syscall_times(),
+        time: (this_time - get_current_block_start_time())/1000 
+    };
+    let mut now_byte = 0;
+    let t = (task_info as *const TaskInfo) as usize;
+    for i in ti {
+        let len = i.len();
+        unsafe{
+            i.copy_from_slice(core::slice::from_raw_parts_mut((t+now_byte)as *mut u8, len));
+        }
+        now_byte += len;
+    }
+    0
 }
