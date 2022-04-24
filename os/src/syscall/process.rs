@@ -66,15 +66,6 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     let mut inner = TASK_MANAGER.inner.exclusive_access();
     let current = inner.current_task;
     let mut this_permission = MapPermission::U | MapPermission::from_bits((_port << 1) as u8).unwrap();
-    // if _port & 1 == 1 {
-    //     this_permission |= MapPermission::R;
-    // }
-    // if _port & 2 == 1 {
-    //     this_permission |= MapPermission::W;
-    // } 
-    // if _port & 4 == 1{
-    //     this_permission |= MapPermission::X;
-    // }
     let vpn_range = VPNRange::new(VirtAddr::from(_start).floor(), VirtAddr::from(_start+_len).ceil());
     for vpn in vpn_range {
         if let Some(pte) = inner.tasks[current].memory_set.page_table.find_pte(vpn) {
