@@ -1,0 +1,12 @@
+default:
+  image: deathwish2019/rcore-ci
+
+stages:
+  - test
+
+test-code-job:
+  stage: test
+  script:
+    - git clone --recursive https://token:${RCORE_CHECKER_REPO_READ_TOKEN_2022S}@git.tsinghua.edu.cn/os-lab/ta-2022s/rcore-tutorial-checker-2022s.git ci-user
+    - git clone --recursive https://token:${RCORE_TEST_REPO_READ_TOKEN_2022S}@git.tsinghua.edu.cn/os-lab/public/rcore-tutorial-test-2022s.git ci-user/user
+    - cd ci-user && make test CHAPTER=`echo $CI_COMMIT_REF_NAME | grep -oP 'ch\K[0-9]'`
