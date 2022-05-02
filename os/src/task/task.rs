@@ -48,6 +48,8 @@ pub struct TaskControlBlockInner {
     pub exit_code: i32,
     pub syscall_times: [u32; MAX_SYSCALL_NUM],
     pub start_time: usize,
+    pub stride: isize,
+    pub priority: isize,
 }
 
 /// Simple access to its internal fields
@@ -86,7 +88,10 @@ impl TaskControlBlock {
         let mut inner = self.inner_exclusive_access();
         inner.syscall_times[syscall_id] += 1;
     }
-
+    pub fn set_priority(&self, prio:isize) {
+        let mut inner = self.inner_exclusive_access();
+        inner.priority = prio;
+    }
     /// Create a new process
     ///
     /// At present, it is only used for the creation of initproc
@@ -116,7 +121,9 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     syscall_times: [0; MAX_SYSCALL_NUM],
-                    start_time: 0
+                    start_time: 0,
+                    stride: 0,
+                    priority: 16
                 })
             },
         };
@@ -185,7 +192,9 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     syscall_times: [0;MAX_SYSCALL_NUM],
-                    start_time: 0
+                    start_time: 0,
+                    stride: 0,
+                    priority: 16
                 })
             },
         });
