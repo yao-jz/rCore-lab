@@ -29,27 +29,27 @@ impl TaskManager {
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
-        // let mut index = 0;
-        // let mut min_stride = 0x7FFFFFFF;
-        // for i in 0..self.ready_queue.len() {
-        //     if let Some(task) = self.ready_queue.get_mut(i) {
-        //         let inner = task.inner_exclusive_access();
-        //         if inner.task_status == TaskStatus::Ready {
-        //             if inner.stride < min_stride {
-        //                 index = i;
-        //                 min_stride = inner.stride;
-        //             }
-        //         } else {
-        //             continue;
-        //         }
-        //     }
-        // }
-        // if let Some(task) = self.ready_queue.get(index) {
-        //     let mut inner = task.inner_exclusive_access();
-        //     inner.stride += BIG_STRIDE / inner.priority;
-        // }
-        self.ready_queue.pop_front()
-        // self.ready_queue.remove(index)
+        let mut index = 0;
+        let mut min_stride = 0x7FFFFFFF;
+        for i in 0..self.ready_queue.len() {
+            if let Some(task) = self.ready_queue.get_mut(i) {
+                let inner = task.inner_exclusive_access();
+                if inner.task_status == TaskStatus::Ready {
+                    if inner.stride < min_stride {
+                        index = i;
+                        min_stride = inner.stride;
+                    }
+                } else {
+                    continue;
+                }
+            }
+        }
+        if let Some(task) = self.ready_queue.get(index) {
+            let mut inner = task.inner_exclusive_access();
+            inner.stride += BIG_STRIDE / inner.priority;
+        }
+        // self.ready_queue.pop_front()
+        self.ready_queue.remove(index)
     }
 }
 
