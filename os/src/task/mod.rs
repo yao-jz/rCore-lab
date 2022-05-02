@@ -19,13 +19,16 @@ mod task;
 
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
+use crate::config::MAX_SYSCALL_NUM;
 use lazy_static::*;
 use manager::fetch_task;
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus,TaskControlBlockInner};
 
 pub use context::TaskContext;
 pub use manager::add_task;
+use alloc::vec::Vec;
+use core::cell::RefMut;
 pub use pid::{pid_alloc, KernelStack, PidHandle};
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
@@ -96,4 +99,27 @@ lazy_static! {
 
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+pub fn get_current_block_status() -> TaskStatus {
+    let task = current_task().unwrap();
+    let status = task.inner_exclusive_access().get_status();
+    status
+}
+
+pub fn get_current_block_syscall_times() -> [u32;MAX_SYSCALL_NUM] {
+    let task = current_task().unwrap();
+    let syscall_times = task.inner_exclusive_access().get_syscall_times();
+    syscall_times
+}
+
+pub fn get_current_block_start_time() -> usize {
+    let task = current_task().unwrap();
+    let start_time = task.inner_exclusive_access().get_start_time();
+    start_time
+}
+
+pub fn update_syscall_times(syscall_id: usize) {
+    let task = current_task().unwrap();
+    task.update_syscall_times(syscall_id);
 }

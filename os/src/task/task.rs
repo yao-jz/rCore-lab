@@ -2,7 +2,7 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT;
+use crate::config::{TRAP_CONTEXT,MAX_SYSCALL_NUM};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -20,7 +20,7 @@ pub struct TaskControlBlock {
     /// Kernel stack corresponding to PID
     pub kernel_stack: KernelStack,
     // mutable
-    inner: UPSafeCell<TaskControlBlockInner>,
+    pub inner: UPSafeCell<TaskControlBlockInner>,
 }
 
 /// Structure containing more process content
@@ -46,6 +46,8 @@ pub struct TaskControlBlockInner {
     pub children: Vec<Arc<TaskControlBlock>>,
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub start_time: usize,
 }
 
 /// Simple access to its internal fields
@@ -61,8 +63,14 @@ impl TaskControlBlockInner {
     pub fn get_user_token(&self) -> usize {
         self.memory_set.token()
     }
-    fn get_status(&self) -> TaskStatus {
+    pub fn get_status(&self) -> TaskStatus {
         self.task_status
+    }
+    pub fn get_syscall_times(&self) -> [u32;MAX_SYSCALL_NUM] {
+        self.syscall_times
+    }
+    pub fn get_start_time(&self) -> usize {
+        self.start_time
     }
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
@@ -73,6 +81,10 @@ impl TaskControlBlock {
     /// Get the mutex to get the RefMut TaskControlBlockInner
     pub fn inner_exclusive_access(&self) -> RefMut<'_, TaskControlBlockInner> {
         self.inner.exclusive_access()
+    }
+    pub fn update_syscall_times(&self, syscall_id:usize){
+        let mut inner = self.inner_exclusive_access();
+        inner.syscall_times[syscall_id] += 1;
     }
 
     /// Create a new process
@@ -103,6 +115,8 @@ impl TaskControlBlock {
                     parent: None,
                     children: Vec::new(),
                     exit_code: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    start_time: 0
                 })
             },
         };
@@ -170,6 +184,8 @@ impl TaskControlBlock {
                     parent: Some(Arc::downgrade(self)),
                     children: Vec::new(),
                     exit_code: 0,
+                    syscall_times: [0;MAX_SYSCALL_NUM],
+                    start_time: 0
                 })
             },
         });
