@@ -102,10 +102,6 @@ impl TaskControlBlock {
         inner.syscall_times[syscall_id] += 1;
     }
 
-    pub fn update_syscall_times(&self, syscall_id:usize){
-        let mut inner = self.inner_exclusive_access();
-        inner.syscall_times[syscall_id] += 1;
-    }
     pub fn set_priority(&self, prio:isize) {
         let mut inner = self.inner_exclusive_access();
         inner.priority = prio;
