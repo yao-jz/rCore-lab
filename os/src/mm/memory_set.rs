@@ -38,7 +38,7 @@ pub fn kernel_token() -> usize {
 
 /// memory set structure, controls virtual-memory space
 pub struct MemorySet {
-    page_table: PageTable,
+    pub page_table: PageTable,
     areas: Vec<MapArea>,
 }
 

@@ -2,13 +2,15 @@
 
 use crate::mm::{translated_refmut, translated_ref, translated_str};
 use crate::task::{
-    add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus,
+    add_task, current_task, current_user_token, exit_current_and_run_next,TaskContext,take_current_task,
+    suspend_current_and_run_next, TaskStatus, pid_alloc, PidHandle,TaskControlBlockInner,
+    get_current_block_status,get_current_block_syscall_times,get_current_block_start_time, KernelStack, TaskControlBlock
 };
 use crate::fs::{open_file, OpenFlags};
 use crate::config::{TRAP_CONTEXT,BIG_STRIDE};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_us;
+use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use crate::config::MAX_SYSCALL_NUM;
@@ -114,18 +116,42 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 // YOUR JOB: 引入虚地址后重写 sys_get_time
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
+    let ts = translated_byte_buffer(current_user_token(), _ts as *const u8, core::mem::size_of::<TimeVal>());
+    let mut now_byte = 0;
+    let time_val = &TimeVal {
+        sec: _us / 1_000_000,
+        usec: _us % 1_000_000,
+    };
+    let t = (time_val as *const TimeVal) as usize;
+    for i in ts {
+        let len = i.len();
+        unsafe {
+            i.copy_from_slice(core::slice::from_raw_parts_mut((t+now_byte)as *mut u8, len));
+        }
+        now_byte += len;
+    }
     0
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    let this_time = get_time_us();
+    let ti = translated_byte_buffer(current_user_token(), ti as *const u8, core::mem::size_of::<TaskInfo>());
+    let task_info = &TaskInfo {
+        status: get_current_block_status(),
+        syscall_times: get_current_block_syscall_times(),
+        time: (this_time - get_current_block_start_time())/1000 
+    };
+    let mut now_byte = 0;
+    let t = (task_info as *const TaskInfo) as usize;
+    for i in ti {
+        let len = i.len();
+        unsafe{
+            i.copy_from_slice(core::slice::from_raw_parts_mut((t+now_byte)as *mut u8, len));
+        }
+        now_byte += len;
+    }
+    0
 }
 
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
@@ -142,11 +168,47 @@ pub fn sys_set_priority(_prio: isize) -> isize {
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    -1
+    if _start % PAGE_SIZE != 0 || _port & !0x7 != 0 || _port & 0x7 == 0 {
+        return -1;
+    }
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    let this_permission = MapPermission::U | MapPermission::from_bits((_port << 1) as u8).unwrap();
+    let vpn_range = VPNRange::new(VirtAddr::from(_start).floor(), VirtAddr::from(_start+_len).ceil());
+    for vpn in vpn_range {
+        if let Some(pte) = inner.memory_set.page_table.find_pte(vpn) {
+            if pte.is_valid() {
+                return -1;
+            }
+        } else {
+        }
+    }
+    inner.memory_set.insert_framed_area(VirtAddr::from(_start), VirtAddr::from(_start+_len), this_permission);
+    0
 }
 
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+    if _start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    let start_vpn: VirtPageNum = VirtAddr::from(_start).floor();
+    let end_vpn: VirtPageNum = VirtAddr::from(_start+_len).ceil();
+    let vpn_range = VPNRange::new(start_vpn, end_vpn);
+    for vpn in vpn_range {
+        if let Some(pte) = inner.memory_set.page_table.find_pte(vpn) {
+            if !pte.is_valid() {
+                return -1;
+            }
+        } else{
+            return -1;
+        }
+    }
+    for vpn in vpn_range {
+        inner.memory_set.page_table.unmap(vpn);
+    }
+    0
 }
 
 //
