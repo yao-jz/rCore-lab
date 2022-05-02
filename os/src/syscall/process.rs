@@ -1,5 +1,8 @@
 //! Process management syscalls
 
+// yaojianzhu
+// use std::thread::current;
+
 use crate::loader::get_app_data_by_name;
 use crate::mm::{translated_refmut, translated_str,translated_byte_buffer,MapPermission};
 use crate::mm::{VPNRange,VirtPageNum,MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
