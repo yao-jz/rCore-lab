@@ -50,6 +50,10 @@ pub struct TaskControlBlockInner {
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub start_time: usize,
+    pub stride: isize,
+    pub priority: isize,
 }
 
 /// Simple access to its internal fields
@@ -88,6 +92,14 @@ impl TaskControlBlock {
         self.inner.exclusive_access()
     }
 
+    pub fn update_syscall_times(&self, syscall_id:usize){
+        let mut inner = self.inner_exclusive_access();
+        inner.syscall_times[syscall_id] += 1;
+    }
+    pub fn set_priority(&self, prio:isize) {
+        let mut inner = self.inner_exclusive_access();
+        inner.priority = prio;
+    }
     /// Create a new process
     ///
     /// At present, it is only used for the creation of initproc
@@ -124,6 +136,10 @@ impl TaskControlBlock {
                         // 2 -> stderr
                         Some(Arc::new(Stdout)),
                     ],
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    start_time: 0,
+                    stride: 0,
+                    priority: 16
                 })
             },
         };
@@ -200,6 +216,10 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     fd_table: new_fd_table,
+                    syscall_times: [0;MAX_SYSCALL_NUM],
+                    start_time: 0,
+                    stride: 0,
+                    priority: 16
                 })
             },
         });

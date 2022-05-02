@@ -6,6 +6,8 @@ use crate::task::{
     suspend_current_and_run_next, TaskStatus,
 };
 use crate::fs::{open_file, OpenFlags};
+use crate::config::{TRAP_CONTEXT,BIG_STRIDE};
+use crate::sync::UPSafeCell;
 use crate::timer::get_time_us;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -128,7 +130,14 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
 pub fn sys_set_priority(_prio: isize) -> isize {
-    -1
+    if _prio >= 2 {
+        let task = current_task().unwrap();
+        task.set_priority(_prio);
+        _prio
+    } else {
+        -1
+    }
+    // -1
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
@@ -144,5 +153,56 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
 // YOUR JOB: 实现 sys_spawn 系统调用
 // ALERT: 注意在实现 SPAWN 时不需要复制父进程地址空间，SPAWN != FORK + EXEC 
 pub fn sys_spawn(_path: *const u8) -> isize {
-    -1
+    let task = current_task().unwrap();
+    // let mut parent_inner = task.inner_exclusive_access();
+    let token = current_user_token();
+    let path = translated_str(token, _path);
+    if let Some(data) = get_app_data_by_name(path.as_str()){
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(data);
+        let trap_cx_ppn = memory_set
+                .translate(VirtAddr::from(TRAP_CONTEXT).into())
+                .unwrap()
+                .ppn();
+        let pid_handle = pid_alloc();
+        let kernel_stack = KernelStack::new(&pid_handle);
+        let kernel_stack_top = kernel_stack.get_top();
+        let task_control_block = Arc::new(TaskControlBlock {
+            pid: pid_handle,
+            kernel_stack,
+            inner: unsafe {
+                UPSafeCell::new(TaskControlBlockInner {
+                    trap_cx_ppn,
+                    base_size: task.inner_exclusive_access().base_size,
+                    task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                    task_status: TaskStatus::Ready,
+                    memory_set,
+                    parent: Some(Arc::downgrade(&task)),
+                    children: Vec::new(),
+                    exit_code: 0,
+                    syscall_times: [0;MAX_SYSCALL_NUM],
+                    start_time: 0,
+                    stride: 0,
+                    priority: 16
+                })
+            },
+        });
+        task.inner_exclusive_access().children.push(task_control_block.clone());
+        
+        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
+
+        *trap_cx = TrapContext::app_init_context(
+            entry_point,
+            user_sp,
+            KERNEL_SPACE.exclusive_access().token(),
+            kernel_stack_top,
+            trap_handler as usize,
+        );
+        // trap_cx.x[10] = 0;
+        let pid = task_control_block.pid.0;
+        add_task(task_control_block);
+        pid as isize
+    } else {
+        -1
+    }
+    // 1
 }
