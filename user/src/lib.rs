@@ -14,6 +14,7 @@ extern crate core;
 extern crate bitflags;
 
 use buddy_system_allocator::LockedHeap;
+use alloc::vec::Vec;
 pub use console::{flush, STDIN, STDOUT};
 pub use syscall::*;
 
@@ -29,19 +30,48 @@ pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
     panic!("Heap allocation error, layout = {:?}", layout);
 }
 
+fn clear_bss() {
+    extern "C" {
+        fn start_bss();
+        fn end_bss();
+    }
+    unsafe {
+        core::slice::from_raw_parts_mut(
+            start_bss as usize as *mut u8,
+            end_bss as usize - start_bss as usize,
+        )
+        .fill(0);
+    }
+}
+
 #[no_mangle]
 #[link_section = ".text.entry"]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
+    clear_bss();
     unsafe {
         HEAP.lock()
             .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
     }
-    exit(main());
+    let mut v: Vec<&'static str> = Vec::new();
+    for i in 0..argc {
+        let str_start = unsafe {
+            ((argv + i * core::mem::size_of::<usize>()) as *const usize).read_volatile()
+        };
+        let len = (0usize..).find(|i| unsafe {
+            ((str_start + *i) as *const u8).read_volatile() == 0
+        }).unwrap();
+        v.push(
+            core::str::from_utf8(unsafe {
+                core::slice::from_raw_parts(str_start as *const u8, len)
+            }).unwrap()
+        );
+    }
+    exit(main(argc, v.as_slice()));
 }
 
 #[linkage = "weak"]
 #[no_mangle]
-fn main() -> i32 {
+fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
 }
 
@@ -65,6 +95,39 @@ pub struct TimeVal {
 impl TimeVal {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum TaskStatus {
+    UnInit,
+    Ready,
+    Running,
+    Exited,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct SyscallInfo {
+    pub id: usize,
+    pub times: usize,
+}
+
+const MAX_SYSCALL_NUM: usize = 500;
+
+#[derive(Debug)]
+pub struct TaskInfo {
+    pub status: TaskStatus,
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub time: usize,
+}
+
+impl TaskInfo {
+    pub fn new() -> Self {
+        TaskInfo {
+            status: TaskStatus::UnInit,
+            syscall_times: [0; MAX_SYSCALL_NUM],
+            time: 0,
+        }
     }
 }
 
@@ -177,8 +240,8 @@ pub fn fork() -> isize {
     sys_fork()
 }
 
-pub fn exec(path: &str) -> isize {
-    sys_exec(path)
+pub fn exec(path: &str, args: &[*const u8]) -> isize {
+    sys_exec(path, args)
 }
 
 pub fn set_priority(prio: isize) -> isize {
@@ -235,4 +298,8 @@ pub fn dup(fd: usize) -> isize {
 }
 pub fn pipe(pipe_fd: &mut [usize]) -> isize {
     sys_pipe(pipe_fd)
+}
+
+pub fn task_info(info: &TaskInfo) -> isize {
+    sys_task_info(info)
 }

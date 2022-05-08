@@ -1,3 +1,5 @@
+use crate::TaskInfo;
+
 use super::{Stat, TimeVal};
 
 pub const SYSCALL_OPENAT: usize = 56;
@@ -22,6 +24,7 @@ pub const SYSCALL_MAIL_READ: usize = 401;
 pub const SYSCALL_MAIL_WRITE: usize = 402;
 pub const SYSCALL_DUP: usize = 24;
 pub const SYSCALL_PIPE: usize = 59;
+pub const SYSCALL_TASK_INFO: usize = 410;
 
 pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     let mut ret: isize;
@@ -145,8 +148,8 @@ pub fn sys_fork() -> isize {
     syscall(SYSCALL_FORK, [0, 0, 0])
 }
 
-pub fn sys_exec(path: &str) -> isize {
-    syscall(SYSCALL_EXEC, [path.as_ptr() as usize, 0, 0])
+pub fn sys_exec(path: &str, args: &[*const u8]) -> isize {
+    syscall(SYSCALL_EXEC, [path.as_ptr() as usize,  args.as_ptr() as usize, 0])
 }
 
 pub fn sys_waitpid(pid: isize, xstatus: *mut i32) -> isize {
@@ -175,4 +178,8 @@ pub fn sys_dup(fd: usize) -> isize {
 
 pub fn sys_pipe(pipe: &mut [usize]) -> isize {
     syscall(SYSCALL_PIPE, [pipe.as_mut_ptr() as usize, 0, 0])
+}
+
+pub fn sys_task_info(info: &TaskInfo) -> isize {
+    syscall(SYSCALL_TASK_INFO, [info as *const _ as usize, 0, 0])
 }
