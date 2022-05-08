@@ -1,7 +1,6 @@
 //! Process management syscalls
 
 use crate::mm::{translated_ref};
-use crate::loader::get_app_data_by_name;
 use crate::mm::{translated_refmut, translated_str,translated_byte_buffer,MapPermission};
 use crate::mm::{VPNRange,VirtPageNum,MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::config::PAGE_SIZE;
@@ -17,6 +16,7 @@ use crate::timer::get_time_us;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use crate::fs::{File, Stdin, Stdout};
 use crate::config::MAX_SYSCALL_NUM;
 use alloc::string::String;
 
@@ -223,8 +223,9 @@ pub fn sys_spawn(_path: *const u8) -> isize {
     // let mut parent_inner = task.inner_exclusive_access();
     let token = current_user_token();
     let path = translated_str(token, _path);
-    if let Some(data) = get_app_data_by_name(path.as_str()){
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(data);
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let all_data = app_inode.read_all();
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(all_data.as_slice());
         let trap_cx_ppn = memory_set
                 .translate(VirtAddr::from(TRAP_CONTEXT).into())
                 .unwrap()
@@ -232,6 +233,15 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         let pid_handle = pid_alloc();
         let kernel_stack = KernelStack::new(&pid_handle);
         let kernel_stack_top = kernel_stack.get_top();
+        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+        // clone all fds from parent to child
+        for fd in task.inner_exclusive_access().fd_table.iter() {
+            if let Some(file) = fd {
+                new_fd_table.push(Some(file.clone()));
+            } else {
+                new_fd_table.push(None);
+            }
+        }
         let task_control_block = Arc::new(TaskControlBlock {
             pid: pid_handle,
             kernel_stack,
@@ -245,6 +255,7 @@ pub fn sys_spawn(_path: *const u8) -> isize {
                     parent: Some(Arc::downgrade(&task)),
                     children: Vec::new(),
                     exit_code: 0,
+                    fd_table: new_fd_table,
                     syscall_times: [0;MAX_SYSCALL_NUM],
                     start_time: 0,
                     stride: 0,
