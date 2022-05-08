@@ -1,13 +1,16 @@
 use super::File;
-use crate::mm::UserBuffer;
+use crate::mm::{UserBuffer};
 use crate::sbi::console_getchar;
 use crate::task::suspend_current_and_run_next;
 
+/// The standard input
 pub struct Stdin;
-
+/// The standard output
 pub struct Stdout;
 
 impl File for Stdin {
+    fn readable(&self) -> bool { true }
+    fn writable(&self) -> bool { false }
     fn read(&self, mut user_buf: UserBuffer) -> usize {
         assert_eq!(user_buf.len(), 1);
         // busy loop
@@ -22,9 +25,7 @@ impl File for Stdin {
             }
         }
         let ch = c as u8;
-        unsafe {
-            user_buf.buffers[0].as_mut_ptr().write_volatile(ch);
-        }
+        unsafe { user_buf.buffers[0].as_mut_ptr().write_volatile(ch); }
         1
     }
     fn write(&self, _user_buf: UserBuffer) -> usize {
@@ -33,7 +34,9 @@ impl File for Stdin {
 }
 
 impl File for Stdout {
-    fn read(&self, _user_buf: UserBuffer) -> usize {
+    fn readable(&self) -> bool { false }
+    fn writable(&self) -> bool { true }
+    fn read(&self, _user_buf: UserBuffer) -> usize{
         panic!("Cannot read from stdout!");
     }
     fn write(&self, user_buf: UserBuffer) -> usize {

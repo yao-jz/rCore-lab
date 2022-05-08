@@ -1,3 +1,17 @@
+//! Trap handling functionality
+//!
+//! For rCore, we have a single trap entry point, namely `__alltraps`. At
+//! initialization in [`init()`], we set the `stvec` CSR to point to it.
+//!
+//! All traps go through `__alltraps`, which is defined in `trap.S`. The
+//! assembly language code does just enough work restore the kernel space
+//! context, ensuring that Rust code safely runs, and transfers control to
+//! [`trap_handler()`].
+//!
+//! It then calls different functionality based on what exactly the exception
+//! was. For example, timer interrupts trigger task preemption, and syscalls go
+//! to [`syscall()`].
+
 mod context;
 
 use crate::config::{TRAMPOLINE, TRAP_CONTEXT};
@@ -47,7 +61,7 @@ pub fn trap_handler() -> ! {
             let mut cx = current_trap_cx();
             cx.sepc += 4;
             // get system call return value
-            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
+            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12], cx.x[13]]);
             // cx is changed during sys_exec, so we have to call it again
             cx = current_trap_cx();
             cx.x[10] = result as usize;
@@ -58,7 +72,7 @@ pub fn trap_handler() -> ! {
         | Trap::Exception(Exception::InstructionPageFault)
         | Trap::Exception(Exception::LoadFault)
         | Trap::Exception(Exception::LoadPageFault) => {
-            error!(
+            println!(
                 "[kernel] {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.",
                 scause.cause(),
                 stval,
@@ -68,7 +82,7 @@ pub fn trap_handler() -> ! {
             exit_current_and_run_next(-2);
         }
         Trap::Exception(Exception::IllegalInstruction) => {
-            error!("[kernel] IllegalInstruction in application, core dumped.");
+            println!("[kernel] IllegalInstruction in application, core dumped.");
             // illegal instruction exit code
             exit_current_and_run_next(-3);
         }

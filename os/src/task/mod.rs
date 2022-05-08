@@ -1,3 +1,14 @@
+//! Implementation of process management mechanism
+//!
+//! Here is the entry for process scheduling required by other modules
+//! (such as syscall or clock interrupt).
+//! By suspending or exiting the current process, you can
+//! modify the process state, manage the process queue through TASK_MANAGER,
+//! and switch the control flow through PROCESSOR.
+//!
+//! Be careful when you see [`__switch`]. Control flow around this function
+//! might not be what you expect.
+
 mod context;
 mod manager;
 mod pid;
@@ -6,12 +17,17 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
 use lazy_static::*;
 use manager::fetch_task;
 use switch::__switch;
-use task::{TaskControlBlock, TaskStatus};
+use crate::mm::VirtAddr;
+use crate::mm::MapPermission;
+use crate::config::PAGE_SIZE;
+use crate::timer::get_time_us;
+pub use crate::syscall::process::TaskInfo;
+use crate::fs::{open_file, OpenFlags};
+pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 pub use manager::add_task;
@@ -20,6 +36,7 @@ pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
 };
 
+/// Make current task suspended and switch to the next task
 pub fn suspend_current_and_run_next() {
     // There must be an application running.
     let task = take_current_task().unwrap();
@@ -38,6 +55,7 @@ pub fn suspend_current_and_run_next() {
     schedule(task_cx_ptr);
 }
 
+/// Exit current task, recycle process resources and switch to the next task
 pub fn exit_current_and_run_next(exit_code: i32) {
     // take from Processor
     let task = take_current_task().unwrap();
@@ -72,9 +90,15 @@ pub fn exit_current_and_run_next(exit_code: i32) {
 }
 
 lazy_static! {
-    pub static ref INITPROC: Arc<TaskControlBlock> = Arc::new(TaskControlBlock::new(
-        get_app_data_by_name("initproc").unwrap()
-    ));
+    /// Creation of initial process
+    ///
+    /// the name "initproc" may be changed to any other app name like "usertests",
+    /// but we have user_shell, so we don't need to change it.
+    pub static ref INITPROC: Arc<TaskControlBlock> = Arc::new({
+        let inode = open_file("ch6b_initproc", OpenFlags::RDONLY).unwrap();
+        let v = inode.read_all();
+        TaskControlBlock::new(v.as_slice())
+    });
 }
 
 pub fn add_initproc() {

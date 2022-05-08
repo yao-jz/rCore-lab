@@ -1,8 +1,10 @@
+//! Implementation of [`MapArea`] and [`MemorySet`].
+
 use super::{frame_alloc, FrameTracker};
 use super::{PTEFlags, PageTable, PageTableEntry};
 use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use super::{StepByOne, VPNRange};
-use crate::config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
+use crate::config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE, MMIO};
 use crate::sync::UPSafeCell;
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
@@ -24,10 +26,17 @@ extern "C" {
 }
 
 lazy_static! {
+    /// a memory set instance through lazy_static! managing kernel space
     pub static ref KERNEL_SPACE: Arc<UPSafeCell<MemorySet>> =
         Arc::new(unsafe { UPSafeCell::new(MemorySet::new_kernel()) });
 }
 
+/// Get the token of the kernel memory space
+pub fn kernel_token() -> usize {
+    KERNEL_SPACE.exclusive_access().token()
+}
+
+/// memory set structure, controls virtual-memory space
 pub struct MemorySet {
     page_table: PageTable,
     areas: Vec<MapArea>,
@@ -144,6 +153,17 @@ impl MemorySet {
             ),
             None,
         );
+        info!("mapping memory-mapped registers");
+        for pair in MMIO {
+            memory_set.push(
+                MapArea::new(
+                    (*pair).0.into(),
+                    ((*pair).0 + (*pair).1).into(),
+                    MapType::Identical,
+                    MapPermission::R | MapPermission::W,
+                ),
+            None);
+        }
         memory_set
     }
     /// Include sections in elf and trampoline and TrapContext and user stack,
@@ -214,6 +234,7 @@ impl MemorySet {
             elf.header.pt2.entry_point() as usize,
         )
     }
+    /// Copy an identical user_space
     pub fn from_existed_user(user_space: &MemorySet) -> MemorySet {
         let mut memory_set = Self::new_bare();
         // map trampoline
@@ -249,6 +270,7 @@ impl MemorySet {
     }
 }
 
+/// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
     vpn_range: VPNRange,
     data_frames: BTreeMap<VirtPageNum, FrameTracker>,
@@ -295,6 +317,7 @@ impl MapArea {
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
         page_table.map(vpn, ppn, pte_flags);
     }
+
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         #[allow(clippy::single_match)]
         match self.map_type {
@@ -340,12 +363,14 @@ impl MapArea {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+/// map type for memory set: identical or framed
 pub enum MapType {
     Identical,
     Framed,
 }
 
 bitflags! {
+    /// map permission corresponding to that in pte: `R W X U`
     pub struct MapPermission: u8 {
         const R = 1 << 1;
         const W = 1 << 2;

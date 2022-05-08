@@ -1,3 +1,5 @@
+//! Implementation of [`PageTableEntry`] and [`PageTable`].
+
 use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::string::String;
 use alloc::vec;
@@ -5,6 +7,7 @@ use alloc::vec::Vec;
 use bitflags::*;
 
 bitflags! {
+    /// page table entry flags
     pub struct PTEFlags: u8 {
         const V = 1 << 0;
         const R = 1 << 1;
@@ -19,6 +22,7 @@ bitflags! {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
+/// page table entry structure
 pub struct PageTableEntry {
     pub bits: usize,
 }
@@ -52,6 +56,7 @@ impl PageTableEntry {
     }
 }
 
+/// page table structure
 pub struct PageTable {
     root_ppn: PhysPageNum,
     frames: Vec<FrameTracker>,
@@ -74,10 +79,10 @@ impl PageTable {
         }
     }
     fn find_pte_create(&mut self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
-        let idxs = vpn.indexes();
+        let mut idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
-        for (i, idx) in idxs.iter().enumerate() {
+        for (i, idx) in idxs.iter_mut().enumerate() {
             let pte = &mut ppn.get_pte_array()[*idx];
             if i == 2 {
                 result = Some(pte);
@@ -126,7 +131,9 @@ impl PageTable {
     }
     pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
         self.find_pte(va.clone().floor()).map(|pte| {
+            //println!("translate_va:va = {:?}", va);
             let aligned_pa: PhysAddr = pte.ppn().into();
+            //println!("translate_va:pa_align = {:?}", aligned_pa);
             let offset = va.page_offset();
             let aligned_pa_usize: usize = aligned_pa.into();
             (aligned_pa_usize + offset).into()
@@ -137,6 +144,7 @@ impl PageTable {
     }
 }
 
+/// translate a pointer to a mutable u8 Vec through page table
 pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&'static mut [u8]> {
     let page_table = PageTable::from_token(token);
     let mut start = ptr as usize;
@@ -178,23 +186,33 @@ pub fn translated_str(token: usize, ptr: *const u8) -> String {
     string
 }
 
+pub fn translated_ref<T>(token: usize, ptr: *const T) -> &'static T {
+    let page_table = PageTable::from_token(token);
+    page_table.translate_va(VirtAddr::from(ptr as usize)).unwrap().get_mut()
+}
+
 pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
+    //println!("into translated_refmut!");
     let page_table = PageTable::from_token(token);
     let va = ptr as usize;
+    //println!("translated_refmut: before translate_va");
     page_table
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
 }
 
+/// An abstraction over a buffer passed from user space to kernel space
 pub struct UserBuffer {
     pub buffers: Vec<&'static mut [u8]>,
 }
 
 impl UserBuffer {
+    /// Constuct a UserBuffer
     pub fn new(buffers: Vec<&'static mut [u8]>) -> Self {
         Self { buffers }
     }
+    /// Get the length of a UserBuffer
     pub fn len(&self) -> usize {
         let mut total: usize = 0;
         for b in self.buffers.iter() {
@@ -216,6 +234,7 @@ impl IntoIterator for UserBuffer {
     }
 }
 
+// An iterator over a UserBuffer
 pub struct UserBufferIterator {
     buffers: Vec<&'static mut [u8]>,
     current_buffer: usize,

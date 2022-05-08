@@ -1,17 +1,22 @@
+//! Implementation of physical and virtual address and page number.
 use super::PageTableEntry;
 use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use core::fmt::{self, Debug, Formatter};
 
 /// Definitions
+#[repr(C)]
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysAddr(pub usize);
 
+#[repr(C)]
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtAddr(pub usize);
 
+#[repr(C)]
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysPageNum(pub usize);
 
+#[repr(C)]
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtPageNum(pub usize);
 
@@ -147,6 +152,9 @@ impl VirtPageNum {
 }
 
 impl PhysAddr {
+    pub fn get_ref<T>(&self) -> &'static T {
+        unsafe { (self.0 as *const T).as_ref().unwrap() }
+    }
     pub fn get_mut<T>(&self) -> &'static mut T {
         unsafe { (self.0 as *mut T).as_mut().unwrap() }
     }
@@ -175,7 +183,14 @@ impl StepByOne for VirtPageNum {
     }
 }
 
+impl StepByOne for PhysPageNum {
+    fn step(&mut self) {
+        self.0 += 1;
+    }
+}
+
 #[derive(Copy, Clone)]
+/// a simple range structure for type T
 pub struct SimpleRange<T>
 where
     T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
@@ -208,6 +223,7 @@ where
         SimpleRangeIterator::new(self.l, self.r)
     }
 }
+/// iterator for the simple range structure
 pub struct SimpleRangeIterator<T>
 where
     T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
@@ -238,4 +254,6 @@ where
         }
     }
 }
+
+/// a simple range structure for virtual page number
 pub type VPNRange = SimpleRange<VirtPageNum>;
