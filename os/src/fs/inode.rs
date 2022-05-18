@@ -1,3 +1,4 @@
+use core::convert::TryInto;
 use easy_fs::{
     EasyFileSystem,
     Inode,
@@ -16,13 +17,13 @@ use crate::mm::UserBuffer;
 pub struct OSInode {
     readable: bool,
     writable: bool,
-    inner: UPSafeCell<OSInodeInner>,
+    pub inner: UPSafeCell<OSInodeInner>,
 }
 
 /// The OS inode inner in 'UPSafeCell'
 pub struct OSInodeInner {
     offset: usize,
-    inode: Arc<Inode>,
+    pub inode: Arc<Inode>,
 }
 
 impl OSInode {
@@ -56,6 +57,10 @@ impl OSInode {
         }
         v
     }
+    pub fn get_inode_id(&self) -> u64 {
+        self.inner.exclusive_access().inode.block_id.try_into().unwrap()
+    }
+    
 }
 
 lazy_static! {
