@@ -15,9 +15,9 @@ use spin::{Mutex, MutexGuard};
 
 /// Virtual filesystem layer over easy-fs
 pub struct Inode {
-    pub block_id: usize,
-    pub block_offset: usize,
-    pub fs: Arc<Mutex<EasyFileSystem>>,
+    block_id: usize,
+    block_offset: usize,
+    fs: Arc<Mutex<EasyFileSystem>>,
     block_device: Arc<dyn BlockDevice>,
 }
 
@@ -157,67 +157,6 @@ impl Inode {
         )))
         // release efs lock automatically by compiler
     }
-    pub fn linknode(&self, old_name: &str, new_name: &str) -> Option<Arc<Inode>> {
-        let mut fs = self.fs.lock();
-        if self.modify_disk_inode(|root_inode| {
-            // assert it is a directory
-            assert!(root_inode.is_dir());
-            // has the file been created?
-            self.find_inode_id(new_name, root_inode)
-        }).is_some() {
-            return None;
-        }
-        if let Some(old_id) = self.read_disk_inode(|root_inode| {
-            // assert it is a directory
-            assert!(root_inode.is_dir());
-            // has the file been created?
-            self.find_inode_id(old_name, root_inode)
-        }) {
-            let new_inode_id = old_id;
-            self.modify_disk_inode(|root_inode| {
-                // append file in the dirent
-                let file_count = (root_inode.size as usize) / DIRENT_SZ;
-                let new_size = (file_count + 1) * DIRENT_SZ;
-                // increase size
-                self.increase_size(new_size as u32, root_inode, &mut fs);
-                // write dirent
-                let dirent = DirEntry::new(new_name, new_inode_id);
-                root_inode.write_at(
-                    file_count * DIRENT_SZ,
-                    dirent.as_bytes(),
-                    &self.block_device,
-                );
-            });
-            let (block_id, block_offset) = fs.get_disk_inode_pos(new_inode_id);
-            Some(Arc::new(Self::new(
-                block_id,
-                block_offset,
-                self.fs.clone(),
-                self.block_device.clone(),
-            )))
-        } else {
-            None
-        }
-    }
-    pub fn unlink(&self, name: &str) -> isize {
-        let mut fs = self.fs.lock();
-        self.modify_disk_inode( | root_inode | {
-            assert!(root_inode.is_dir());
-            let file_count = (root_inode.size as usize) / DIRENT_SZ;
-            let mut tmp = DirEntry::empty();
-            let mut swap = DirEntry::empty();
-            for i in 0..file_count {
-                root_inode.read_at(DIRENT_SZ * i, tmp.as_bytes_mut(), &self.block_device);
-                if tmp.name() == name {
-                    root_inode.read_at(DIRENT_SZ * (file_count - 1), swap.as_bytes_mut(), &self.block_device);
-                    root_inode.write_at(DIRENT_SZ * i, swap.as_bytes_mut(), &self.block_device);
-                    root_inode.size -= DIRENT_SZ as u32;
-                    return 0;
-                }
-            }
-            return -1;
-        })
-    }
     /// List inodes under current inode
     pub fn ls(&self) -> Vec<String> {
         let _fs = self.fs.lock();
@@ -237,29 +176,6 @@ impl Inode {
                 v.push(String::from(dirent.name()));
             }
             v
-        })
-    }
-    pub fn get_link_num(&self, block_id: usize, block_offset: usize) -> usize {
-        let _fs = self.fs.lock();
-        let mut count: usize = 0;
-        self.read_disk_inode(|disk_inode| {
-            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
-            for i in 0..file_count {
-                let mut dirent = DirEntry::empty();
-                assert_eq!(
-                    disk_inode.read_at(
-                        i * DIRENT_SZ,
-                        dirent.as_bytes_mut(),
-                        &self.block_device,
-                    ),
-                    DIRENT_SZ,
-                );
-                let (this_block_id, this_offset) = _fs.get_disk_inode_pos(dirent.inode_number());
-                if (this_block_id as usize == block_id)&& (this_offset as usize == block_offset) {
-                    count += 1;
-                }
-            }
-            count
         })
     }
     /// Read data from current inode
@@ -292,5 +208,4 @@ impl Inode {
         });
         block_cache_sync_all();
     }
-
 }

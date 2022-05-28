@@ -97,7 +97,7 @@ impl PageTable {
         }
         result
     }
-    pub fn find_pte(&self, vpn: VirtPageNum) -> Option<&PageTableEntry> {
+    fn find_pte(&self, vpn: VirtPageNum) -> Option<&PageTableEntry> {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&PageTableEntry> = None;

@@ -1,23 +1,11 @@
-mod inode;
 mod stdio;
-
-use core::any::Any;
+mod inode;
+mod pipe;
 
 use crate::mm::UserBuffer;
 
 /// The common abstraction of all IO resources
-
-pub trait AToAny: 'static {
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<T: 'static> AToAny for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-pub trait File: Send + Sync + AToAny {
-// pub trait File : Send + Sync {
+pub trait File : Send + Sync {
     fn readable(&self) -> bool;
     fn writable(&self) -> bool;
     fn read(&self, buf: UserBuffer) -> usize;
@@ -37,7 +25,7 @@ pub struct Stat {
     /// number of hard links
     pub nlink: u32,
     /// unused pad
-    pub pad: [u64; 7],
+    pad: [u64; 7],
 }
 
 bitflags! {
@@ -50,7 +38,8 @@ bitflags! {
         /// ordinary regular file
         const FILE  = 0o100000;
     }
-}
+}    
 
-pub use inode::{list_apps, open_file, OSInode, OpenFlags, ROOT_INODE};
 pub use stdio::{Stdin, Stdout};
+pub use inode::{OSInode, open_file, OpenFlags, list_apps};
+pub use pipe::{Pipe, make_pipe};
