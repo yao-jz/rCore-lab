@@ -81,22 +81,20 @@ impl ProcessControlBlockInner {
         }
         // print!("finish.len = {}, work.len = {}\n", finish.len(), work.len());
         while true {
-            let mut find: bool = true;
+            let mut find: bool = false;
             for i in 0..self.thread_count() {
-                if finish[i] == false {
-                    for j in 0..work.len() {
-                        if self.mutex_need[i][j] > work[j] {
-                            find = false;
-                        }
-                    }
-                } else {
-                    find = false;
-                }
-                if find == true {
-                    for j in 0..work.len() {
+                for j in 0..work.len() {
+                    // print!("self.mutex_need.len = {}\n", self.mutex_need.len());
+                    // print!("i = {}, j = {}\n ", i, j);
+                    if finish[i] == false && self.mutex_need[i][j] <= work[j] {
+                        find = true;
                         work[j] = work[j] + self.mutex_allocation[i][j];
                         finish[i] = true;
+                        break;
                     }
+                }
+                if find == true {
+                    break;
                 }
             }
             if find == true {
