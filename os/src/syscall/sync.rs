@@ -131,11 +131,11 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
     let next_queue_id = sem.get_next_queue_id();
     if next_queue_id == -1 { // 队列内没有东西
         process_inner.semaphore_available[sem_id] += 1;
-        process_inner.semaphore_allocation[tid][sem_id] = 0;
+        process_inner.semaphore_allocation[tid][sem_id] -= 1;
     } else { // 队列非空
-        process_inner.semaphore_allocation[tid][sem_id] = 0;
-        process_inner.semaphore_allocation[next_queue_id as usize][sem_id] = 1;
-        process_inner.semaphore_need[next_queue_id as usize][sem_id] = 0;
+        process_inner.semaphore_allocation[tid][sem_id] -= 1;
+        process_inner.semaphore_allocation[next_queue_id as usize][sem_id] += 1;
+        process_inner.semaphore_need[next_queue_id as usize][sem_id] -= 1;
     }
     drop(process_inner);
     drop(process);
