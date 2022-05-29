@@ -122,6 +122,7 @@ impl ProcessControlBlockInner {
         while true {
             let mut find: bool = true;
             for i in 0..self.thread_count() {
+                find = true;
                 if finish[i] == false {
                     for j in 0..work.len() {
                         if self.semaphore_need[i][j] > work[j] {
@@ -136,6 +137,7 @@ impl ProcessControlBlockInner {
                         work[j] = work[j] + self.semaphore_allocation[i][j];
                         finish[i] = true;
                     }
+                    break;
                 }
             }
             if find == true {
